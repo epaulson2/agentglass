@@ -4,6 +4,7 @@ import "./cookieentry.ts";
 import type { ServerWebSocket } from "bun";
 import type { IngestBody, WsFrame, WorkingTree, PanesResponse, AgentSessionRow } from "../../shared/types.ts";
 import { slackReachable } from "./slackreach.ts";
+import { handleQcrOsProxy } from "./qcr-proxy.ts";
 import { normalize, detectError, clampIngestTimestamp, externalIngestError } from "./ingest.ts";
 import { db } from "./db.ts";
 import {
@@ -846,6 +847,12 @@ const server = Bun.serve<WsData>({
       const ip = clientIp || "local";
       if (!rateOk(`${ip} ${pathname}`)) return json({ ok: false, error: "rate limited" }, 429);
     }
+
+    // --- QCR OS same-origin proxy ---
+    // After auth: browser is already verified by Agentglass auth gate above.
+    // Proxy injects a server-side service-channel token for QCR OS verification.
+    const qcrProxyRes = await handleQcrOsProxy(req, pathname);
+    if (qcrProxyRes) return qcrProxyRes;
 
     // --- WebSocket upgrade ---
     // Origin-checked like the mutating routes. WebSockets are exempt from CORS,
