@@ -55,6 +55,7 @@ import { ProjectPicker, PICKER_ANSWERED_KEY } from "./components/ProjectPicker.t
 import { NeedsPopover, type NeedsItem } from "./components/NeedsPopover.tsx";
 import { requestPrJump } from "./lib/prJump.ts";
 import { subscribeGates, listGates } from "./lib/gateStore.ts";
+import { AuroraConversationWrapper } from "./views/aurora/AgentConversation.tsx";
 
 /** The last segment of a path — a project's name as anyone says it out loud. */
 const leafOf = (p: string): string => p.split("/").filter(Boolean).pop() ?? p;
@@ -1000,6 +1001,8 @@ export default function App() {
           />
         )}
       />
+
+      <AuroraConversationWrapper />
 
       <EventModal event={selected} onClose={() => setSelected(null)} />
       <StatsModal open={statsOpen} onClose={() => setStatsOpen(false)} stats={stats} windowMs={windowMs} />
