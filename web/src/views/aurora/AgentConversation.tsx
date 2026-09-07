@@ -7,6 +7,7 @@ type Entry = { entry_id: string; entry_type: string; content: string | null; pos
 type Activity = { cursor: number; type: string; payload: Record<string, unknown>; interaction_id: string };
 type ReplayActivity = { cursor: number; event_type: string; payload: Record<string, unknown>; interaction_id: string };
 type ResumeState = { threadId: string; interactionId: string; cursor: number };
+type PendingSend = { key: string; message: string; expectedFocusVersion: number | null };
 
 const ROLES = ["qcr-main", "qcr-product", "qcr-architecture", "qcr-planning", "qcr-delivery", "qcr-assurance", "qcr-release"];
 const TERMINAL = new Set(["TURN_COMPLETED", "TURN_CANCELLED", "TURN_FAILED"]);
@@ -62,6 +63,8 @@ export function AuroraConversationWrapper() {
       setInteractionId(null);
       setResume(null);
       sessionStorage.removeItem(`qcr-conversation-interaction:${id}`);
+      sessionStorage.removeItem(`qcr-conversation-pending:${id}`);
+      sessionStorage.removeItem(`qcr-conversation-idempotency:${id}`);
     }
   }, []);
 
@@ -74,6 +77,10 @@ export function AuroraConversationWrapper() {
     setInteractionId(null);
     const savedInteraction = sessionStorage.getItem(`qcr-conversation-interaction:${selected.conversation_thread_id}`);
     const savedCursor = Number(sessionStorage.getItem(`qcr-conversation-cursor:${selected.conversation_thread_id}`) ?? 0);
+    const pendingRaw = sessionStorage.getItem(`qcr-conversation-pending:${selected.conversation_thread_id}`);
+    if (pendingRaw && !savedInteraction) {
+      try { setMessage((JSON.parse(pendingRaw) as PendingSend).message); } catch { sessionStorage.removeItem(`qcr-conversation-pending:${selected.conversation_thread_id}`); }
+    }
     setResume(savedInteraction ? { threadId: selected.conversation_thread_id, interactionId: savedInteraction, cursor: savedCursor } : null);
     setActivities([]);
     const state = await api<{ thread: Thread; focus: Focus | null }>(`/api/v1/conversations/threads/${selected.conversation_thread_id}`);
@@ -122,9 +129,20 @@ export function AuroraConversationWrapper() {
     const controller = new AbortController();
     stream.current = controller;
     const submitted = message.trim();
-    const idempotencyKey = crypto.randomUUID();
+    const pendingKey = `qcr-conversation-pending:${id}`;
+    let pending: PendingSend | null = null;
+    try {
+      const saved = sessionStorage.getItem(pendingKey);
+      pending = saved ? JSON.parse(saved) as PendingSend : null;
+    } catch { sessionStorage.removeItem(pendingKey); }
+    const expectedFocusVersion = focus?.focus_version ?? null;
+    const idempotencyKey = pending?.message === submitted && pending.expectedFocusVersion === expectedFocusVersion
+      ? pending.key
+      : crypto.randomUUID();
+    pending = { key: idempotencyKey, message: submitted, expectedFocusVersion };
     let acceptedInteraction = interactionId ?? "";
     sessionStorage.setItem(`qcr-conversation-idempotency:${id}`, idempotencyKey);
+    sessionStorage.setItem(pendingKey, JSON.stringify(pending));
     setMessage("");
     try {
       const response = await fetch(`/qcr-os/api/v1/conversations/threads/${id}/messages`, {
@@ -140,6 +158,7 @@ export function AuroraConversationWrapper() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffered = "";
+      let terminalSeen = false;
       while (true) {
         const chunk = await reader.read();
         if (chunk.done) break;
@@ -151,9 +170,11 @@ export function AuroraConversationWrapper() {
           if (!data) continue;
           const event = JSON.parse(data) as Activity;
           if (event.type === "TURN_ACCEPTED") acceptedInteraction = event.interaction_id;
+          if (TERMINAL.has(event.type)) terminalSeen = true;
           applyActivity(id, generation, event);
         }
       }
+      if (!terminalSeen) throw new Error("Conversation stream ended before a terminal event");
       await history(id);
       if (currentThread.current === id && streamGeneration.current === generation) {
         setStreaming(null);
@@ -166,9 +187,16 @@ export function AuroraConversationWrapper() {
         if (savedInteraction && currentThread.current === id) {
           setResume({ threadId: id, interactionId: savedInteraction, cursor: Number(sessionStorage.getItem(`qcr-conversation-cursor:${id}`) ?? 0) });
         }
-        if (currentThread.current === id) { setStreaming(null); setInteractionId(null); }
+        if (currentThread.current === id) {
+          if (!savedInteraction) setMessage(submitted);
+          setStreaming(null); setInteractionId(null);
+        }
       } else if (currentThread.current === id && streamGeneration.current === generation) {
         setError(cause instanceof Error ? cause.message : "Conversation failed");
+        if (!acceptedInteraction) setMessage(submitted);
+        if (acceptedInteraction) {
+          setResume({ threadId: id, interactionId: acceptedInteraction, cursor: Number(sessionStorage.getItem(`qcr-conversation-cursor:${id}`) ?? 0) });
+        }
         setStreaming(null);
       }
     }
