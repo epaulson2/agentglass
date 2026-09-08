@@ -232,7 +232,10 @@ export function callerFor(req: Request, url: URL, token: string): Caller | null 
 
 /** POSTs that only read. They are POSTs because their argument is a filesystem
  *  path, which has no business in a URL, not because they change anything. */
-const READ_POST = new Set(["/git/status"]);
+const READ_POST = new Set([
+  "/git/status",
+  "/qcr-os/api/v1/actions/preflight",
+]);
 
 /**
  * GETs that are not reads. `/terminal/pty` is a WebSocket upgrade, and a
@@ -270,6 +273,7 @@ const ANSWER_POST = new Set([
   "/gate/decide",
   "/chat/send",
   "/chat/pane/key",
+  "/qcr-os/api/v1/actions/attention/respond",
 ]);
 
 export function scopeNeeded(method: string, pathname: string): Scope {

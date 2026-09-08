@@ -41,7 +41,9 @@ import { runBootRecipes } from "./components/RecipesPane.tsx";
 import { onOpenPrs, onOpenPr } from "./lib/openPrs.ts";
 import { onOpenCard, openCard } from "./lib/openCard.ts";
 import { onOpenIssue } from "./lib/openIssue.ts";
-import { newChat, chatResuming, applyLiveEvent } from "./lib/chatStore.ts";
+import { newChat, chatResuming, applyLiveEvent, listChats, subscribe as subscribeChats } from "./lib/chatStore.ts";
+import { collectAttention } from "./lib/attention.ts";
+import { listQcrAttention, respondToQcrAttention, subscribeQcrAttention } from "./lib/qcrActions.ts";
 import { sessionCwd } from "./lib/worktree.ts";
 import { SearchModal } from "./components/SearchModal.tsx";
 import { SettingsModal } from "./components/SettingsModal.tsx";
@@ -459,6 +461,16 @@ export default function App() {
    *  "an agent asked a question" from "an agent is stopped at a gate you can
    *  let through" — only the second has a button anywhere in this app. */
   const gates = useSyncExternalStore(subscribeGates, listGates, listGates);
+  const chats = useSyncExternalStore(subscribeChats, listChats, listChats);
+  const qcrAttention = useSyncExternalStore(
+    subscribeQcrAttention,
+    listQcrAttention,
+    listQcrAttention,
+  );
+  const mergedAttention = useMemo(
+    () => collectAttention({ gates, insights: [], alerts, chats, agents, qcr: qcrAttention }),
+    [gates, alerts, chats, agents, qcrAttention],
+  );
   /**
    * The one thing the top bar interrupts for.
    *
@@ -468,14 +480,13 @@ export default function App() {
    * from any view — and says nothing at all when there is nothing to say.
    */
   const needs = useMemo(() => {
-    if (!alerts.length) return null;
-    const first = alerts[0]!;
-    // `agent` is the card key the alert was raised from, so the name shown is
-    // the session's own rather than a uuid the reader has never seen.
-    const who = agents.find((a) => a.key === first.agent);
-    const label = who?.title || who?.source_app || first.agent;
+    if (!mergedAttention.length) return null;
+    const first = mergedAttention[0]!;
+    const label = first.qcr
+      ? `${first.qcr.item.owning_domain} · ${first.qcr.item.attention_type}`
+      : first.source === "chat" ? "Conversation" : "Agentglass";
     return {
-      count: alerts.length,
+      count: mergedAttention.length,
       // The name alone. It used to carry "needs you" as well, which spends the
       // width the reason needs to say something you can already see from the
       // amber strip it is sitting in.
@@ -488,7 +499,7 @@ export default function App() {
       // chip is only the headline now, and the panel it opens is the thing that
       // has to know how to act.
     };
-  }, [alerts, agents]);
+  }, [mergedAttention]);
 
   /**
    * Everything that is waiting on you, with what can honestly be done about it.
@@ -507,28 +518,30 @@ export default function App() {
    * directory, which is the useful half of what a destination would have done.
    */
   const needsList = useMemo((): NeedsItem[] => {
-    const homeless = alerts.slice(0, 8);
-    return homeless.map((al) => {
-      const who = agents.find((a) => a.key === al.agent);
-      const sessionId = who?.session_id ?? "";
+    return mergedAttention.slice(0, 8).map((item) => {
+      const alertId = item.id.startsWith("alert:") ? item.id.slice(6) : null;
+      const alert = alertId ? alerts.find((candidate) => candidate.id === alertId) : undefined;
+      const who = alert ? agents.find((agent) => agent.key === alert.agent) : undefined;
+      const sessionId = item.target?.kind === "session" ? item.target.id : who?.session_id ?? "";
       const project = who?.project ?? null;
       // A cockpit watches every project at once, so an alert from another one is
       // legitimate — but it must say which, or you go looking in the wrong tree.
       const other = project && workspace && project !== workspace ? leafOf(project) : null;
       return {
-        key: al.id,
+        key: item.id,
         sessionId,
-        label: who?.title || who?.source_app || al.agent,
-        because: al.text,
-        level: al.level === "error" ? "error" : "warn",
+        label: item.qcr ? `${item.qcr.item.owning_domain} · ${item.qcr.item.attention_type}` : who?.title || who?.source_app || item.source,
+        because: item.text,
+        level: item.level === "error" || item.level === "blocking" ? "error" : "warn",
         cwd: who?.cwd ?? project,
         project,
         otherProject: other,
-        chatId: sessionId ? (chatResuming(sessionId)?.id ?? null) : null,
-        gated: !!sessionId && gates.some((g) => g.session_id === sessionId),
+        chatId: item.target?.kind === "chat" ? item.target.id : sessionId ? (chatResuming(sessionId)?.id ?? null) : null,
+        gated: item.source === "gate" || (!!sessionId && gates.some((g) => g.session_id === sessionId)),
+        qcr: item.qcr,
       };
     });
-  }, [alerts, agents, workspace, gates]);
+  }, [mergedAttention, alerts, agents, workspace, gates]);
 
   const openChatFor = useCallback((chatId: string) => {
     setChatFocus(chatId);
@@ -540,7 +553,7 @@ export default function App() {
   const switchProject = useCallback((root: string) => {
     void api.setWorkspace(root).then((r) => { if (r.ok) setWorkspace(r.workspace); }).catch(() => {});
   }, []);
-  useAlertSound(alerts.length, sound);
+  useAlertSound(mergedAttention.length, sound);
 
   // Demo builds only: hand the fleet to whoever is showing this build inside a
   // frame. Today that is the landing page's head-up display, which draws the
@@ -969,6 +982,7 @@ export default function App() {
         onNeedApprove={approveOnDash}
         onNeedProject={switchProject}
         onNeedTerminal={() => goView("term")}
+        onQcrRespond={(item, option) => { void respondToQcrAttention(item, option).catch(() => {}); }}
         // A notification that knows what it is about. The panel may be open
         // over any view and the PR panel may not be mounted at all, so the
         // request is left in a slot and the view switched — the same shape the
