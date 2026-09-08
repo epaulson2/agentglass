@@ -58,6 +58,7 @@ import { NeedsPopover, type NeedsItem } from "./components/NeedsPopover.tsx";
 import { requestPrJump } from "./lib/prJump.ts";
 import { subscribeGates, listGates } from "./lib/gateStore.ts";
 import { AuroraConversationWrapper } from "./views/aurora/AgentConversation.tsx";
+import { QcrResourcePressure } from "./components/QcrResourcePressure.tsx";
 
 /** The last segment of a path — a project's name as anyone says it out loud. */
 const leafOf = (p: string): string => p.split("/").filter(Boolean).pop() ?? p;
@@ -971,6 +972,7 @@ export default function App() {
       <ServerBanner />
       <GitMissingBanner />
       {qcrAttentionError && <div role="alert" className="px-3 py-1 text-xs" style={{ color: "var(--error)", background: "var(--bg2)" }}>{qcrAttentionError}</div>}
+      <QcrResourcePressure />
 
       <TopBar
         workspace={workspace}
