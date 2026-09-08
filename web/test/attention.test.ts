@@ -1,5 +1,14 @@
-import { test, expect } from "bun:test";
+import { afterEach, test, expect } from "bun:test";
 import { collectAttention, type AttentionInput } from "../src/lib/attention.ts";
+import {
+  listQcrAttention,
+  refreshQcrAttention,
+  respondToQcrAttention,
+  type QcrAttention,
+} from "../src/lib/qcrActions.ts";
+
+const originalFetch = globalThis.fetch;
+afterEach(() => { globalThis.fetch = originalFetch; });
 
 const NOW = 1_700_000_000_000;
 const input = (over: Partial<AttentionInput> = {}): AttentionInput =>
@@ -85,4 +94,96 @@ test("items with no target are never merged together", () => {
     { id: "b", level: "error", agent: "y", text: "two", ts: NOW },
   ] as any;
   expect(collectAttention(input({ alerts }))).toHaveLength(2);
+});
+
+test("canonical QCR attention is namespaced and preserves legal responses", () => {
+  const [item] = collectAttention(input({
+    qcr: [{
+      attention_id: "01990000-0000-7000-8000-000000000801",
+      initiative_id: "01990000-0000-7000-8000-000000000001",
+      attention_type: "APPROVAL_REQUIRED",
+      owning_domain: "PRODUCT",
+      priority: "HIGH",
+      reason_code: "SCOPE_APPROVAL",
+      summary: "Approve Product scope",
+      blocking: true,
+      lifecycle_state: "OPEN",
+      legal_responses: [{ option_id: "approve", label: "Approve" }],
+      actionable: true,
+      state_version: 1,
+      created_at: new Date(NOW).toISOString(),
+    }],
+  }));
+  expect(item.id).toBe("qcr:01990000-0000-7000-8000-000000000801");
+  expect(item.source).toBe("qcr");
+  expect(item.qcr?.responses[0]?.label).toBe("Approve");
+});
+
+test("a stale QCR response refreshes canonical state and reports the typed conflict", async () => {
+  const item: QcrAttention = {
+    attention_id: "01990000-0000-7000-8000-000000000802",
+    initiative_id: "01990000-0000-7000-8000-000000000001",
+    attention_type: "QUESTION",
+    owning_domain: "CONTROL",
+    priority: "NORMAL",
+    reason_code: "CONFIRM",
+    summary: "Confirm priority",
+    blocking: false,
+    lifecycle_state: "OPEN",
+    legal_responses: [{ option_id: "yes", label: "Yes" }],
+    actionable: true,
+    state_version: 1,
+    created_at: new Date(NOW).toISOString(),
+  };
+  const refreshed = { ...item, state_version: 2, summary: "Canonical state changed" };
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  let reads = 0;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(input), init });
+    if (init?.method === "POST") {
+      return new Response(JSON.stringify({ error: { code: "STATE_VERSION_CONFLICT" } }), {
+        status: 409,
+        headers: { "content-type": "application/json" },
+      });
+    }
+    reads += 1;
+    return Response.json({ items: [reads === 1 ? item : refreshed] });
+  }) as typeof fetch;
+
+  await refreshQcrAttention();
+  await expect(respondToQcrAttention(item, item.legal_responses[0]!)).rejects.toThrow(
+    "STATE_VERSION_CONFLICT",
+  );
+  expect(listQcrAttention()[0]?.state_version).toBe(2);
+  const submitted = JSON.parse(String(requests.find((request) => request.init?.method === "POST")?.init?.body));
+  expect(submitted.expected_state_version).toBe(1);
+  expect(submitted.target_ref.id).toBe(item.attention_id);
+  expect(submitted.parameters).toEqual({ option_id: "yes", response: {} });
+});
+
+test("a non-action response submits the frozen option parameters", async () => {
+  const item: QcrAttention = {
+    attention_id: "01990000-0000-7000-8000-000000000803",
+    initiative_id: "01990000-0000-7000-8000-000000000001",
+    attention_type: "APPROVAL_REQUIRED",
+    owning_domain: "CONTROL",
+    priority: "HIGH",
+    reason_code: "APPROVAL",
+    summary: "Approve the bounded action",
+    blocking: true,
+    lifecycle_state: "OPEN",
+    legal_responses: [{ option_id: "approve", label: "Approve", parameters: { decision: "APPROVE", action: "deploy", resource_refs: [] } }],
+    actionable: true,
+    state_version: 1,
+    created_at: new Date(NOW).toISOString(),
+  };
+  let submitted: Record<string, unknown> | undefined;
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    if (init?.method === "POST") submitted = JSON.parse(String(init.body));
+    return Response.json({ items: [] });
+  }) as typeof fetch;
+  await respondToQcrAttention(item, item.legal_responses[0]!);
+  expect((submitted?.parameters as { response: unknown }).response).toEqual({
+    decision: "APPROVE", action: "deploy", resource_refs: [],
+  });
 });

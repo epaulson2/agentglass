@@ -14,6 +14,35 @@ const TERMINAL = new Set(["TURN_COMPLETED", "TURN_CANCELLED", "TURN_FAILED"]);
 const panel: CSSProperties = { position: "fixed", right: 16, bottom: 16, zIndex: 35, width: 430, maxHeight: "72vh", display: "flex", flexDirection: "column", border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg2)", boxShadow: "0 16px 48px #0008", overflow: "hidden" };
 const control: CSSProperties = { border: "1px solid var(--border)", borderRadius: 5, background: "var(--bg3)", color: "var(--text2)", padding: "5px 8px", fontSize: 11 };
 
+function ActionActivityCard({ activity }: { activity: Activity }) {
+  const payload = activity.payload;
+  const action = String(payload.action_type ?? payload.tool ?? "semantic action");
+  const owner = typeof payload.owner === "string" ? payload.owner : "Owner pending";
+  const status = String(
+    payload.status
+      ?? payload.availability
+      ?? (typeof payload.legal === "boolean" ? (payload.legal ? "PREFLIGHT_READY" : "PREFLIGHT_BLOCKED") : "PROPOSED"),
+  );
+  const reasons = Array.isArray(payload.reason_codes)
+    ? payload.reason_codes.map(String)
+    : Array.isArray(payload.blockers) ? payload.blockers.map(String) : [];
+  const complete = status === "COMPLETED";
+  const unavailable = status === "CAPABILITY_UNAVAILABLE" || status === "PREFLIGHT_BLOCKED";
+  return (
+    <article aria-label={`QCR action ${action}`} style={{ margin: "6px 0", padding: 8, borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg3)", fontSize: 10 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <strong style={{ color: "var(--text2)" }}>{action}</strong>
+        <span style={{ marginLeft: "auto", color: complete ? "var(--success)" : unavailable ? "var(--warning)" : "var(--text3)" }}>{status}</span>
+      </div>
+      <div style={{ color: "var(--muted)", marginTop: 3 }}>Owner · {owner}</div>
+      {reasons.length > 0 && <div style={{ color: "var(--warning)", marginTop: 3 }}>{reasons.join(" · ")}</div>}
+      {typeof payload.command_receipt_ref === "object" && payload.command_receipt_ref !== null && (
+        <div style={{ color: "var(--muted)", marginTop: 3 }}>Canonical owner receipt recorded</div>
+      )}
+    </article>
+  );
+}
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/qcr-os${path}`, { ...init, headers: { "content-type": "application/json", ...(init?.headers ?? {}) } });
   const body = await response.json();
@@ -250,9 +279,11 @@ export function AuroraConversationWrapper() {
       {(role === "qcr-assurance" || role === "qcr-release") && <div style={{ display: "grid", gridTemplateColumns: subjectType === "CONTRACT_REVISION" ? "1fr 2fr 60px" : "1fr 2fr", gap: 6, padding: "0 10px 10px" }}><select value={subjectType} onChange={(event) => setSubjectType(event.target.value)} style={control}><option>FINDING</option><option>CERTIFICATION</option><option>RUN</option><option>CONTRACT_REVISION</option></select><input value={subjectId} onChange={(event) => setSubjectId(event.target.value)} placeholder="Optional subject UUID" style={{ ...control, minWidth: 0 }} />{subjectType === "CONTRACT_REVISION" && <input value={subjectRevision} onChange={(event) => setSubjectRevision(event.target.value)} aria-label="Subject revision" style={{ ...control, minWidth: 0 }} />}</div>}
       <div style={{ flex: 1, overflow: "auto", padding: "0 10px 10px", minHeight: 180 }}>
         {thread && <div style={{ color: "var(--muted)", fontSize: 9, marginBottom: 6 }}>{thread.thread_type} · {thread.conversation_thread_id}</div>}
-        {entries.map((entry) => <div key={entry.entry_id} style={{ margin: "5px 0", padding: 7, borderRadius: 6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 12, color: "var(--text2)", background: entry.entry_type === "USER_MESSAGE" ? "var(--accent-dim)" : "var(--bg3)", textAlign: entry.entry_type === "USER_MESSAGE" ? "right" : "left" }}>{entry.entry_type === "ACTION_REF" ? `Action ${entry.action_request_ref?.id ?? "unknown"} · Receipt ${entry.command_receipt_ref?.id ?? "pending"}` : entry.content}</div>)}
+        {entries.map((entry) => <div key={entry.entry_id} style={{ margin: "5px 0", padding: 7, borderRadius: 6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 12, color: "var(--text2)", background: entry.entry_type === "USER_MESSAGE" ? "var(--accent-dim)" : "var(--bg3)", textAlign: entry.entry_type === "USER_MESSAGE" ? "right" : "left" }}>{entry.entry_type === "ACTION_REF" ? (entry.command_receipt_ref ? `Completed action ${entry.action_request_ref?.id ?? "unknown"} · Receipt ${entry.command_receipt_ref.id}` : `Action proposal ${entry.action_request_ref?.id ?? "unknown"} · awaiting owner receipt`) : entry.content}</div>)}
         {streaming !== null && <div style={{ margin: "5px 0", padding: 7, borderRadius: 6, whiteSpace: "pre-wrap", color: "var(--text2)", background: "var(--bg3)", fontSize: 12 }}>{streaming || "Waiting for model…"}</div>}
-        {activities.map((activity) => <details key={`${activity.cursor}-${activity.interaction_id}`} style={{ fontSize: 10, color: "var(--muted)" }}><summary>{activity.type}{typeof activity.payload.owner === "string" ? ` · ${activity.payload.owner}` : ""}</summary><pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(activity.payload, null, 2)}</pre></details>)}
+        {activities.map((activity) => activity.type === "TOOL_ACTIVITY"
+          ? <ActionActivityCard key={`${activity.cursor}-${activity.interaction_id}`} activity={activity} />
+          : <details key={`${activity.cursor}-${activity.interaction_id}`} style={{ fontSize: 10, color: "var(--muted)" }}><summary>{activity.type}{typeof activity.payload.owner === "string" ? ` · ${activity.payload.owner}` : ""}</summary><pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(activity.payload, null, 2)}</pre></details>)}
         {resume && thread?.conversation_thread_id === resume.threadId && <button style={{ ...control, cursor: "pointer" }} onClick={reconnect}>Reconnect turn</button>}
         {error && <div role="alert" style={{ color: "var(--error)", fontSize: 11 }}>{error}</div>}
       </div>

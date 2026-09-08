@@ -62,6 +62,13 @@ export async function handleQcrOsProxy(req: Request, pathname: string): Promise<
   }
 }
 
+/** QCR POSTs are treated as mutations except the explicitly pure preflight query. */
+export function qcrOsRequiresTrustedCaller(method: string, pathname: string): boolean {
+  if (!pathname.startsWith("/qcr-os/")) return false;
+  if (method === "GET" || method === "HEAD") return false;
+  return pathname !== "/qcr-os/api/v1/actions/preflight";
+}
+
 function forwardableHeaders(h: Headers): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of h.entries()) {

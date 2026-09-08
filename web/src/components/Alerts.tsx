@@ -8,6 +8,7 @@ import type { Insight, PendingGate, GateRecord } from "../../../shared/types.ts"
 import { Panel } from "./Panel.tsx";
 import { api } from "../lib/api.ts";
 import { fmtAgo } from "../lib/format.ts";
+import { getQcrAttentionError, listQcrAttention, respondToQcrAttention, subscribeQcrAttention } from "../lib/qcrActions.ts";
 
 const LEVEL: Record<Alert["level"], { color: string; icon: string }> = {
   error: { color: "var(--error)", icon: "✕" },
@@ -96,9 +97,11 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
    * refused tool finally shows up in the panel named for exactly that.
    */
   const chats = useSyncExternalStore(subscribeChats, listChats, listChats);
+  const qcr = useSyncExternalStore(subscribeQcrAttention, listQcrAttention, listQcrAttention);
+  const qcrError = useSyncExternalStore(subscribeQcrAttention, getQcrAttentionError, getQcrAttentionError);
   const attention = useMemo(
-    () => collectAttention({ gates, insights, alerts, chats, agents }),
-    [gates, insights, alerts, chats, agents],
+    () => collectAttention({ gates, insights, alerts, chats, agents, qcr }),
+    [gates, insights, alerts, chats, agents, qcr],
   );
   const openCount = attention.length;
   const empty = openCount === 0 && insights.length === 0 && autoResolved.length === 0;
@@ -110,6 +113,7 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
       right={<span className="text-[10px] font-semibold" style={{ color: openCount ? "var(--error)" : "var(--text4)" }}>{openCount} open</span>}
     >
       <div className="h-full overflow-auto pr-0.5">
+        {qcrError && <div role="alert" className="text-[10.5px] mb-2" style={{ color: "var(--error)" }}>{qcrError}</div>}
         {empty && (
           <div className="flex flex-col items-center justify-center h-full gap-2 py-4">
             <span className="relative flex h-3 w-3">
@@ -162,6 +166,35 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
             </motion.div>
           ))}
         </AnimatePresence>
+
+        {qcr.map((item) => (
+          <div key={`qcr:${item.attention_id}`} className="rounded-xl px-2.5 py-2 mb-2" style={{ border: "1px solid var(--border2)", background: "var(--bg3)" }}>
+            <div className="flex items-center gap-2">
+              <span style={{ color: item.blocking ? "var(--error)" : "var(--warning)" }}>◆</span>
+              <span className="text-[11.5px] font-semibold" style={{ color: "var(--text)" }}>{item.owning_domain} · {item.attention_type}</span>
+              <span className="ml-auto text-[9.5px] t-dim2">v{item.state_version}</span>
+            </div>
+            <div className="text-[10.5px] t-dim mt-1">{item.summary}</div>
+            <div className="text-[9.5px] t-dim2 mt-1">Initiative {item.initiative_id.slice(0, 8)} · {item.lifecycle_state}</div>
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {item.legal_responses.map((option) => (
+                <button
+                  key={option.option_id}
+                  disabled={acting[`qcr:${item.attention_id}`]}
+                  onClick={() => {
+                    const key = `qcr:${item.attention_id}`;
+                    setActing((state) => ({ ...state, [key]: true }));
+                    void respondToQcrAttention(item, option)
+                      .catch(() => undefined)
+                      .finally(() => setActing((state) => ({ ...state, [key]: false })));
+                  }}
+                  className="rounded-lg py-1.5 px-3 text-[11px] font-semibold cursor-pointer"
+                  style={{ color: "var(--bg2)", background: "var(--primary)" }}
+                >{option.label}</button>
+              ))}
+            </div>
+          </div>
+        ))}
 
         {autoResolved.length > 0 && (
           <div className="mb-2">

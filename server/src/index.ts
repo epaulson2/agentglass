@@ -4,7 +4,7 @@ import "./cookieentry.ts";
 import type { ServerWebSocket } from "bun";
 import type { IngestBody, WsFrame, WorkingTree, PanesResponse, AgentSessionRow } from "../../shared/types.ts";
 import { slackReachable } from "./slackreach.ts";
-import { handleQcrOsProxy } from "./qcr-proxy.ts";
+import { handleQcrOsProxy, qcrOsRequiresTrustedCaller } from "./qcr-proxy.ts";
 import { normalize, detectError, clampIngestTimestamp, externalIngestError } from "./ingest.ts";
 import { db } from "./db.ts";
 import {
@@ -851,6 +851,9 @@ const server = Bun.serve<WsData>({
     // --- QCR OS same-origin proxy ---
     // After auth: browser is already verified by Agentglass auth gate above.
     // Proxy injects a server-side service-channel token for QCR OS verification.
+    if (qcrOsRequiresTrustedCaller(req.method, pathname) && !trustedCaller(req, from)) {
+      return csrfBlocked();
+    }
     const qcrProxyRes = await handleQcrOsProxy(req, pathname);
     if (qcrProxyRes) return qcrProxyRes;
 
