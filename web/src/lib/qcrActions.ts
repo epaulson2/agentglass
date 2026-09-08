@@ -24,19 +24,26 @@ export type QcrAttention = {
 };
 
 let current: QcrAttention[] = [];
+let currentError: string | null = null;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const notify = () => { for (const listener of listeners) listener(); };
 
 export async function refreshQcrAttention(): Promise<void> {
-  const response = await fetch("/qcr-os/api/v1/human-attention");
-  if (!response.ok) throw new Error(`QCR attention refresh failed (${response.status})`);
-  const payload = await response.json() as { items?: QcrAttention[] };
-  const next = (payload.items ?? []).filter((item) => item.actionable);
-  if (JSON.stringify(next) !== JSON.stringify(current)) {
+  try {
+    const response = await fetch("/qcr-os/api/v1/human-attention");
+    if (!response.ok) throw new Error(`QCR attention refresh failed (${response.status})`);
+    const payload = await response.json() as { items?: QcrAttention[] };
+    const next = (payload.items ?? []).filter((item) => item.actionable);
+    const changed = JSON.stringify(next) !== JSON.stringify(current) || currentError !== null;
     current = next;
+    currentError = null;
+    if (changed) notify();
+  } catch (error) {
+    currentError = error instanceof Error ? error.message : "QCR attention refresh failed";
     notify();
+    throw error;
   }
 }
 
@@ -53,6 +60,7 @@ export function subscribeQcrAttention(listener: () => void): () => void {
 }
 
 export const listQcrAttention = (): QcrAttention[] => current;
+export const getQcrAttentionError = (): string | null => currentError;
 
 export async function respondToQcrAttention(
   item: QcrAttention,
@@ -65,7 +73,10 @@ export async function respondToQcrAttention(
       action_type: "attention.respond",
       target_ref: { type: "HUMAN_ATTENTION", id: item.attention_id },
       expected_state_version: item.state_version,
-      parameters: { option_id: option.option_id, response: {} },
+      parameters: {
+        option_id: option.option_id,
+        response: option.action_type ? {} : (option.parameters ?? {}),
+      },
       reason: `Agentglass response: ${option.label}`,
       idempotency_key: `agentglass-attention:${item.attention_id}:${item.state_version}:${option.option_id}`,
     }),
@@ -76,11 +87,15 @@ export async function respondToQcrAttention(
       error?: { code?: string };
       detail?: { code?: string };
     } | null;
-    throw new Error(
+    const error = new Error(
       payload?.error?.code
         ?? payload?.detail?.code
         ?? `QCR attention response failed (${response.status})`,
     );
+    currentError = error.message;
+    notify();
+    throw error;
   }
+  currentError = null;
   await refreshQcrAttention();
 }

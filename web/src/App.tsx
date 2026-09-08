@@ -43,7 +43,7 @@ import { onOpenCard, openCard } from "./lib/openCard.ts";
 import { onOpenIssue } from "./lib/openIssue.ts";
 import { newChat, chatResuming, applyLiveEvent, listChats, subscribe as subscribeChats } from "./lib/chatStore.ts";
 import { collectAttention } from "./lib/attention.ts";
-import { listQcrAttention, respondToQcrAttention, subscribeQcrAttention } from "./lib/qcrActions.ts";
+import { getQcrAttentionError, listQcrAttention, respondToQcrAttention, subscribeQcrAttention } from "./lib/qcrActions.ts";
 import { sessionCwd } from "./lib/worktree.ts";
 import { SearchModal } from "./components/SearchModal.tsx";
 import { SettingsModal } from "./components/SettingsModal.tsx";
@@ -466,6 +466,11 @@ export default function App() {
     subscribeQcrAttention,
     listQcrAttention,
     listQcrAttention,
+  );
+  const qcrAttentionError = useSyncExternalStore(
+    subscribeQcrAttention,
+    getQcrAttentionError,
+    getQcrAttentionError,
   );
   const mergedAttention = useMemo(
     () => collectAttention({ gates, insights: [], alerts, chats, agents, qcr: qcrAttention }),
@@ -965,6 +970,7 @@ export default function App() {
       {/* Above everything, because when it shows, nothing below it is real. */}
       <ServerBanner />
       <GitMissingBanner />
+      {qcrAttentionError && <div role="alert" className="px-3 py-1 text-xs" style={{ color: "var(--error)", background: "var(--bg2)" }}>{qcrAttentionError}</div>}
 
       <TopBar
         workspace={workspace}
@@ -982,7 +988,7 @@ export default function App() {
         onNeedApprove={approveOnDash}
         onNeedProject={switchProject}
         onNeedTerminal={() => goView("term")}
-        onQcrRespond={(item, option) => { void respondToQcrAttention(item, option).catch(() => {}); }}
+        onQcrRespond={(item, option) => { void respondToQcrAttention(item, option).catch(() => undefined); }}
         // A notification that knows what it is about. The panel may be open
         // over any view and the PR panel may not be mounted at all, so the
         // request is left in a slot and the view switched — the same shape the

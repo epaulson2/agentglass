@@ -160,3 +160,30 @@ test("a stale QCR response refreshes canonical state and reports the typed confl
   expect(submitted.target_ref.id).toBe(item.attention_id);
   expect(submitted.parameters).toEqual({ option_id: "yes", response: {} });
 });
+
+test("a non-action response submits the frozen option parameters", async () => {
+  const item: QcrAttention = {
+    attention_id: "01990000-0000-7000-8000-000000000803",
+    initiative_id: "01990000-0000-7000-8000-000000000001",
+    attention_type: "APPROVAL_REQUIRED",
+    owning_domain: "CONTROL",
+    priority: "HIGH",
+    reason_code: "APPROVAL",
+    summary: "Approve the bounded action",
+    blocking: true,
+    lifecycle_state: "OPEN",
+    legal_responses: [{ option_id: "approve", label: "Approve", parameters: { decision: "APPROVE", action: "deploy", resource_refs: [] } }],
+    actionable: true,
+    state_version: 1,
+    created_at: new Date(NOW).toISOString(),
+  };
+  let submitted: Record<string, unknown> | undefined;
+  globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+    if (init?.method === "POST") submitted = JSON.parse(String(init.body));
+    return Response.json({ items: [] });
+  }) as typeof fetch;
+  await respondToQcrAttention(item, item.legal_responses[0]!);
+  expect((submitted?.parameters as { response: unknown }).response).toEqual({
+    decision: "APPROVE", action: "deploy", resource_refs: [],
+  });
+});

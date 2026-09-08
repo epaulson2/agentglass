@@ -8,7 +8,7 @@ import type { Insight, PendingGate, GateRecord } from "../../../shared/types.ts"
 import { Panel } from "./Panel.tsx";
 import { api } from "../lib/api.ts";
 import { fmtAgo } from "../lib/format.ts";
-import { listQcrAttention, respondToQcrAttention, subscribeQcrAttention } from "../lib/qcrActions.ts";
+import { getQcrAttentionError, listQcrAttention, respondToQcrAttention, subscribeQcrAttention } from "../lib/qcrActions.ts";
 
 const LEVEL: Record<Alert["level"], { color: string; icon: string }> = {
   error: { color: "var(--error)", icon: "✕" },
@@ -98,6 +98,7 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
    */
   const chats = useSyncExternalStore(subscribeChats, listChats, listChats);
   const qcr = useSyncExternalStore(subscribeQcrAttention, listQcrAttention, listQcrAttention);
+  const qcrError = useSyncExternalStore(subscribeQcrAttention, getQcrAttentionError, getQcrAttentionError);
   const attention = useMemo(
     () => collectAttention({ gates, insights, alerts, chats, agents, qcr }),
     [gates, insights, alerts, chats, agents, qcr],
@@ -112,6 +113,7 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
       right={<span className="text-[10px] font-semibold" style={{ color: openCount ? "var(--error)" : "var(--text4)" }}>{openCount} open</span>}
     >
       <div className="h-full overflow-auto pr-0.5">
+        {qcrError && <div role="alert" className="text-[10.5px] mb-2" style={{ color: "var(--error)" }}>{qcrError}</div>}
         {empty && (
           <div className="flex flex-col items-center justify-center h-full gap-2 py-4">
             <span className="relative flex h-3 w-3">
@@ -183,7 +185,7 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
                     const key = `qcr:${item.attention_id}`;
                     setActing((state) => ({ ...state, [key]: true }));
                     void respondToQcrAttention(item, option)
-                      .catch(() => {})
+                      .catch(() => undefined)
                       .finally(() => setActing((state) => ({ ...state, [key]: false })));
                   }}
                   className="rounded-lg py-1.5 px-3 text-[11px] font-semibold cursor-pointer"
