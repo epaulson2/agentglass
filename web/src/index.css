@@ -382,6 +382,9 @@
   .agw-float { animation: none; transform: rotate(var(--tilt, 0deg)); }
   .rdr-sweep, .shimmer { animation: none !important; }
   [style*="ping-ring"] { animation: none !important; }
+  .aurora-topology .react-flow__node,
+  .aurora-topology .react-flow__edge,
+  .aurora-topology .react-flow__viewport { transition: none !important; animation: none !important; }
 }
 /* `data-ws` joins `data-idle` here: the workspace — or any full-screen modal —
    covers the dashboard, so its ambient loops are animating something nobody can

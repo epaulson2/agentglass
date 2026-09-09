@@ -8,6 +8,12 @@ import { RoleNode, type RoleNodeData } from "./RoleNode.tsx";
 
 const nodeTypes: NodeTypes = { role: RoleNode };
 const button = { border: "1px solid var(--border)", borderRadius: 5, background: "var(--bg3)", color: "var(--text2)", padding: "5px 8px", fontSize: 11, cursor: "pointer" } as const;
+const modeButton = (active: boolean) => ({
+  ...button,
+  background: active ? "color-mix(in srgb, var(--primary) 18%, var(--bg3))" : button.background,
+  borderColor: active ? "var(--primary)" : "var(--border)",
+  color: active ? "var(--text)" : button.color,
+});
 const STAGE_ORDER = ["CONTROL", "PRODUCT", "ARCHITECTURE", "PLANNING", "DELIVERY", "ASSURANCE", "RELEASE"];
 type ActionCard = { text: string; intent: Record<string, unknown>; executable: boolean };
 
@@ -42,7 +48,7 @@ function graph(topology: QcrTopology | null): { nodes: Node[]; edges: Edge[]; si
 }
 
 const TopologyGraph = memo(function TopologyGraph({ rendered, onSelect, onClear }: { rendered: ReturnType<typeof graph>; onSelect: (id: string) => void; onClear: () => void }) {
-  return <ReactFlow nodes={rendered.nodes} edges={rendered.edges} nodeTypes={nodeTypes} fitView minZoom={0.3} onNodeClick={(_, node) => onSelect(node.id)} onPaneClick={onClear}>
+  return <ReactFlow nodes={rendered.nodes} edges={rendered.edges} nodeTypes={nodeTypes} fitView minZoom={0.3} nodesFocusable onNodeClick={(_, node) => onSelect(node.id)} onPaneClick={onClear}>
     <Background /><Controls />
   </ReactFlow>;
 }, (previous, next) => previous.rendered.signature === next.rendered.signature && previous.onSelect === next.onSelect && previous.onClear === next.onClear);
@@ -108,11 +114,11 @@ export function AuroraTopologyView() {
   const freshness = topology?.metadata.freshness ?? "UNAVAILABLE";
   const unavailable = state.connection === "failed" || (!topology && state.connection === "live");
   return (
-    <section aria-label="Aurora operating topology" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)", color: "var(--text2)" }}>
+    <section className="aurora-topology" aria-label="Aurora operating topology" style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)", color: "var(--text2)" }}>
       <header style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderBottom: "1px solid var(--border)" }}>
         <strong style={{ fontSize: 13 }}>Aurora</strong>
-        <button style={button} aria-pressed={mode === "organization"} onClick={() => { setMode("organization"); setSelectedId(null); }}>Organization</button>
-        <button style={button} aria-pressed={mode === "initiative"} onClick={() => { setMode("initiative"); setSelectedId(null); }}>Initiative</button>
+        <button style={modeButton(mode === "organization")} aria-pressed={mode === "organization"} onClick={() => { setMode("organization"); setSelectedId(null); }}>Organization</button>
+        <button style={modeButton(mode === "initiative")} aria-pressed={mode === "initiative"} onClick={() => { setMode("initiative"); setSelectedId(null); }}>Initiative</button>
         {mode === "initiative" && <select aria-label="Initiative" value={initiativeId} onChange={(event) => { setInitiativeId(event.target.value); setSelectedId(null); }} style={button}>
           {(portfolio?.initiatives ?? []).map((item) => <option key={item.initiative_id} value={item.initiative_id}>{item.title}</option>)}
         </select>}

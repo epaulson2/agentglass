@@ -11,7 +11,7 @@ export interface RoleNodeData extends Record<string, unknown> {
 }
 
 const stateColor = (state: string, health?: string | null) => {
-  if (health === "UNHEALTHY" || health === "LOST" || state === "BLOCKED") return "var(--error)";
+  if (health === "QUARANTINED" || health === "UNHEALTHY" || state === "BLOCKED") return "var(--error)";
   if (state === "ACTIVE" || health === "HEALTHY") return "var(--success)";
   if (state === "WAITING" || health === "DEGRADED") return "var(--warning)";
   return "var(--muted)";

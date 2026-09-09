@@ -1,5 +1,5 @@
 import type { QcrPortfolio, QcrResourcePressure } from "./qcr/contracts.ts";
-import { getQcrProjection, getQcrState, refreshQcrState, subscribeQcrSemantic, subscribeQcrState } from "./qcr/store.ts";
+import { getQcrProjection, getQcrState, refreshQcrState, subscribeQcrState } from "./qcr/store.ts";
 
 export type { QcrResourcePressure };
 export type QcrPortfolioConcurrency = Pick<QcrPortfolio, "active_lease_count" | "queued_lease_request_count" | "resource_pressure">;
@@ -22,7 +22,5 @@ export const getQcrPortfolioError = (): string | null => getQcrState().error;
 export async function refreshQcrPortfolio(): Promise<void> { await refreshQcrState(); cached = derive(); }
 
 export function subscribeQcrPortfolio(listener: () => void): () => void {
-  const semantic = subscribeQcrSemantic(() => { cached = derive(); listener(); });
-  const transport = subscribeQcrState(() => {});
-  return () => { semantic(); transport(); };
+  return subscribeQcrState(() => { cached = derive(); listener(); });
 }

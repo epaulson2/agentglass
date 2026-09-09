@@ -132,6 +132,7 @@ async function openStream(epoch: number): Promise<void> {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let streamConfirmed = false;
   while (epoch === state.epoch && subscribers > 0) {
     const chunk = await reader.read();
     if (chunk.done) break;
@@ -140,6 +141,10 @@ async function openStream(epoch: number): Promise<void> {
     const parsed = parseSseFrames(buffer);
     buffer = parsed.remainder;
     for (const frame of parsed.frames) {
+      if (!streamConfirmed) {
+        reconnectAttempt = 0;
+        streamConfirmed = true;
+      }
       if (frame.comment !== undefined && frame.data === undefined) { acceptHeartbeat(epoch); continue; }
       if (!frame.data) continue;
       let envelope: unknown;

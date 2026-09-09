@@ -175,7 +175,7 @@ export function Alerts({ alerts, agents = [], onSelectApp, bump }: { alerts: Ale
               <span className="ml-auto text-[9.5px] t-dim2">v{item.state_version}</span>
             </div>
             <div className="text-[10.5px] t-dim mt-1">{item.summary}</div>
-            <div className="text-[9.5px] t-dim2 mt-1">Initiative {item.initiative_id.slice(0, 8)} · {item.lifecycle_state}</div>
+            <div className="text-[9.5px] t-dim2 mt-1">{item.initiative_id ? `Initiative ${item.initiative_id.slice(0, 8)}` : "Organization"} · {item.lifecycle_state}</div>
             <div className="flex gap-2 mt-2 flex-wrap">
               {item.legal_responses.map((option) => (
                 <button

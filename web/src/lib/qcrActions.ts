@@ -1,5 +1,5 @@
 import type { QcrAttention, QcrAttentionProjection, QcrResponseOption, QcrTypedRef } from "./qcr/contracts.ts";
-import { getQcrProjection, getQcrState, refreshQcrState, subscribeQcrSemantic, subscribeQcrState } from "./qcr/store.ts";
+import { getQcrProjection, getQcrState, refreshQcrState, subscribeQcrState } from "./qcr/store.ts";
 
 export type { QcrAttention, QcrResponseOption, QcrTypedRef };
 
@@ -11,9 +11,7 @@ export const getQcrAttentionError = (): string | null => getQcrState().error;
 export async function refreshQcrAttention(): Promise<void> { await refreshQcrState(); cached = derive(); }
 
 export function subscribeQcrAttention(listener: () => void): () => void {
-  const semantic = subscribeQcrSemantic(() => { cached = derive(); listener(); });
-  const transport = subscribeQcrState(() => {});
-  return () => { semantic(); transport(); };
+  return subscribeQcrState(() => { cached = derive(); listener(); });
 }
 
 export async function respondToQcrAttention(item: QcrAttention, option: QcrResponseOption): Promise<void> {
