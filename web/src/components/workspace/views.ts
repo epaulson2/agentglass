@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import type { ViewId } from "../../../../shared/types.ts";
-import { GitIcon, DiffIcon, DockerIcon, TerminalIcon, ChatIcon, PrIcon, BrowserIcon, FilesIcon, DashIcon, IssuesIcon } from "./icons.tsx";
+import { GitIcon, DiffIcon, DockerIcon, TerminalIcon, ChatIcon, PrIcon, BrowserIcon, FilesIcon, DashIcon, IssuesIcon, AuroraIcon } from "./icons.tsx";
 import { HAS_BROWSER } from "../../lib/desktop.ts";
 import { IS_DEMO } from "../../lib/demo.ts";
 
@@ -66,6 +66,7 @@ export const VIEWS: ViewDef[] = [
   // so leading with it here would only have renumbered the people who never
   // touched it.
   { id: "files", label: "Files", key: "e", icon: FilesIcon, hint: "Browse and search a checkout — and open a file to edit" },
+  { id: "aurora", label: "Aurora", key: "a", icon: AuroraIcon, hint: "See canonical QCR organization and Initiative topology" },
 ];
 
 export const VIEW_IDS = VIEWS.map((v) => v.id);

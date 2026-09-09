@@ -12,6 +12,7 @@ type PendingSend = { key: string; message: string; expectedFocusVersion: number 
 const ROLES = ["qcr-main", "qcr-product", "qcr-architecture", "qcr-planning", "qcr-delivery", "qcr-assurance", "qcr-release"];
 const TERMINAL = new Set(["TURN_COMPLETED", "TURN_CANCELLED", "TURN_FAILED"]);
 const panel: CSSProperties = { position: "fixed", right: 16, bottom: 16, zIndex: 35, width: 430, maxHeight: "72vh", display: "flex", flexDirection: "column", border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg2)", boxShadow: "0 16px 48px #0008", overflow: "hidden" };
+const dockedPanel: CSSProperties = { width: "100%", minHeight: 0, height: "100%", display: "flex", flexDirection: "column", borderLeft: "1px solid var(--border)", background: "var(--bg2)", overflow: "hidden" };
 const control: CSSProperties = { border: "1px solid var(--border)", borderRadius: 5, background: "var(--bg3)", color: "var(--text2)", padding: "5px 8px", fontSize: 11 };
 
 function ActionActivityCard({ activity }: { activity: Activity }) {
@@ -50,10 +51,10 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export function AuroraConversationWrapper() {
-  const [open, setOpen] = useState(false);
-  const [role, setRole] = useState("qcr-main");
-  const [initiative, setInitiative] = useState("");
+export function AgentConversation({ docked = false, roleKey = "qcr-main", initiativeRef = null }: { docked?: boolean; roleKey?: string; initiativeRef?: { id: string } | null }) {
+  const [open, setOpen] = useState(docked);
+  const [role, setRole] = useState(roleKey);
+  const [initiative, setInitiative] = useState(initiativeRef?.id ?? "");
   const [subjectType, setSubjectType] = useState("FINDING");
   const [subjectId, setSubjectId] = useState("");
   const [subjectRevision, setSubjectRevision] = useState("1");
@@ -69,6 +70,9 @@ export function AuroraConversationWrapper() {
   const stream = useRef<AbortController | null>(null);
   const currentThread = useRef<string | null>(null);
   const streamGeneration = useRef(0);
+
+  useEffect(() => { setRole(roleKey); }, [roleKey]);
+  useEffect(() => { setInitiative(initiativeRef?.id ?? ""); }, [initiativeRef?.id]);
 
   const history = useCallback(async (id: string) => {
     const result = await api<{ entries: Entry[] }>(`/api/v1/conversations/threads/${id}/entries`);
@@ -272,8 +276,8 @@ export function AuroraConversationWrapper() {
   if (!open) return <button onClick={() => setOpen(true)} style={{ ...control, position: "fixed", right: 16, bottom: 16, zIndex: 35, cursor: "pointer" }}>QCR roles</button>;
 
   return (
-    <section style={panel} aria-label="QCR role conversations">
-      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, borderBottom: "1px solid var(--border)" }}><strong style={{ color: "var(--text)", fontSize: 12 }}>QCR role conversation</strong><button style={{ ...control, marginLeft: "auto", cursor: "pointer" }} onClick={() => setOpen(false)}>Close</button></header>
+    <section style={docked ? dockedPanel : panel} aria-label="QCR role conversations">
+      <header style={{ display: "flex", alignItems: "center", gap: 8, padding: 10, borderBottom: "1px solid var(--border)" }}><strong style={{ color: "var(--text)", fontSize: 12 }}>QCR role conversation</strong>{!docked && <button style={{ ...control, marginLeft: "auto", cursor: "pointer" }} onClick={() => setOpen(false)}>Close</button>}</header>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 6, padding: 10 }}><select value={role} onChange={(event) => setRole(event.target.value)} style={control}>{ROLES.map((item) => <option key={item}>{item}</option>)}</select><input value={initiative} onChange={(event) => setInitiative(event.target.value)} placeholder="Initiative UUID" style={{ ...control, minWidth: 0 }} /><button style={{ ...control, cursor: "pointer" }} onClick={ensure}>Open</button></div>
       {thread?.thread_type === "MASTER_PORTFOLIO" && <div style={{ display: "flex", gap: 6, padding: "0 10px 10px" }}><button style={{ ...control, cursor: "pointer" }} onClick={updateFocus}>{initiative ? "Focus Initiative" : "Portfolio focus"}</button><span style={{ color: "var(--muted)", fontSize: 10 }}>v{focus?.focus_version ?? 0} · {focus?.mode ?? "PORTFOLIO"}{focus?.initiative_id ? ` · ${focus.initiative_id}` : ""}</span></div>}
       {(role === "qcr-assurance" || role === "qcr-release") && <div style={{ display: "grid", gridTemplateColumns: subjectType === "CONTRACT_REVISION" ? "1fr 2fr 60px" : "1fr 2fr", gap: 6, padding: "0 10px 10px" }}><select value={subjectType} onChange={(event) => setSubjectType(event.target.value)} style={control}><option>FINDING</option><option>CERTIFICATION</option><option>RUN</option><option>CONTRACT_REVISION</option></select><input value={subjectId} onChange={(event) => setSubjectId(event.target.value)} placeholder="Optional subject UUID" style={{ ...control, minWidth: 0 }} />{subjectType === "CONTRACT_REVISION" && <input value={subjectRevision} onChange={(event) => setSubjectRevision(event.target.value)} aria-label="Subject revision" style={{ ...control, minWidth: 0 }} />}</div>}
@@ -290,4 +294,8 @@ export function AuroraConversationWrapper() {
       <footer style={{ display: "flex", gap: 6, padding: 10, borderTop: "1px solid var(--border)" }}><textarea value={message} onChange={(event) => setMessage(event.target.value)} disabled={!thread || streaming !== null} placeholder={thread ? "Ask this role…" : "Open a thread first"} rows={2} style={{ ...control, resize: "none", flex: 1 }} />{streaming !== null ? <><button style={{ ...control, cursor: "pointer" }} onClick={cancel} disabled={!interactionId}>Cancel</button><button style={{ ...control, cursor: "pointer" }} onClick={disconnect}>Disconnect</button></> : <button style={{ ...control, cursor: "pointer" }} onClick={send} disabled={!thread}>Send</button>}</footer>
     </section>
   );
+}
+
+export function AuroraConversationWrapper() {
+  return <AgentConversation />;
 }

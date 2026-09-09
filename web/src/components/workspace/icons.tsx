@@ -13,6 +13,10 @@ const svg = {
 
 type P = { size?: number };
 
+export function AuroraIcon({ size = ICON.md }: P) {
+  return <svg {...svg} width={size} height={size} aria-hidden><circle cx="12" cy="12" r="2.5" /><ellipse cx="12" cy="12" rx="9" ry="4.5" /><path d="M6 5.5c2.6 1.8 9.4 11.2 12 13M18 5.5c-2.6 1.8-9.4 11.2-12 13" /></svg>;
+}
+
 /** A checklist: the one shape that reads as "things to do" rather than "things
  *  that happened", which is the difference between an issue and an event. */
 export function IssuesIcon({ size = ICON.md }: P) {

@@ -42,4 +42,18 @@ describe("QCR semantic action proxy authorization", () => {
     expect(headers["x-qcr-service-token"]).not.toBe("forged-service");
     expect(headers["x-qcr-principal-id"]).not.toBe("forged-principal");
   });
+
+  test("preserves streaming headers and propagates browser cancellation upstream", async () => {
+    let forwarded: RequestInit | undefined;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      forwarded = init;
+      return new Response(": heartbeat\n\n", { headers: { "content-type": "text/event-stream", "cache-control": "no-cache, no-transform" } });
+    }) as typeof fetch;
+    const controller = new AbortController();
+    const request = new Request("http://localhost/qcr-os/stream/v1/operating-state?cursor=0", { signal: controller.signal });
+    const response = await handleQcrOsProxy(request, "/qcr-os/stream/v1/operating-state");
+    expect(forwarded?.signal).toBe(request.signal);
+    expect(response?.headers.get("content-type")).toContain("text/event-stream");
+    expect(response?.headers.get("x-accel-buffering")).toBe("no");
+  });
 });

@@ -46,6 +46,7 @@ export async function handleQcrOsProxy(req: Request, pathname: string): Promise<
       method: req.method,
       headers: forwardableHeaders(req.headers),
       body: req.body,
+      signal: req.signal,
       // @ts-ignore — Bun supports duplex but TS lib doesn't declare it
       duplex: "half",
     });
@@ -90,5 +91,6 @@ function sseSafeHeaders(upstream: Headers): Headers {
   // Preserve cache-control for SSE
   const cc = upstream.get("cache-control");
   if (cc) out.set("cache-control", cc);
+  if (ct?.startsWith("text/event-stream")) out.set("x-accel-buffering", "no");
   return out;
 }

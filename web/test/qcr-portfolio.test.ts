@@ -9,7 +9,7 @@ const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 
 test("portfolio store keeps only redacted resource pressure fields", async () => {
-  globalThis.fetch = (async () => new Response(JSON.stringify({
+  const portfolio = {
     active_lease_count: 2,
     queued_lease_request_count: 1,
     resource_pressure: [{
@@ -22,7 +22,14 @@ test("portfolio store keeps only redacted resource pressure fields", async () =>
       capacity_state: "CONTESTED",
     }],
     fencing_token: "must-not-be-read",
-  }), { status: 200 })) as unknown as typeof fetch;
+    metadata: { projection_generation: "01990000-0000-7000-8000-000000000099", projection_version: "1.0.0", reducer_version: "1.0.0" },
+  };
+  globalThis.fetch = (async () => Response.json({
+    protocol_version: "1.0.0", stream_id: "operating", cursor: 0,
+    projection_generation: "01990000-0000-7000-8000-000000000099",
+    projection_version: "1.0.0", reducer_version: "1.0.0", replacement: true,
+    projections: [{ kind: "portfolio", key: "current", value: portfolio }],
+  })) as unknown as typeof fetch;
 
   await refreshQcrPortfolio();
   expect(getQcrPortfolio()).toEqual({

@@ -1,50 +1,44 @@
-/**
- * FIXTURE: Custom React Flow node for QCR role display.
- * Status styling proves Aurora halo concept — not final design.
- * No semantic state stored here — status comes from QCR OS stream.
- */
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-
-export type RoleStatus = "idle" | "active" | "blocked";
 
 export interface RoleNodeData extends Record<string, unknown> {
   label: string;
-  status: RoleStatus;
+  roleKey?: string | null;
+  stage?: string | null;
+  semanticState: string;
+  observedHealth?: string | null;
+  attention: number;
+  capacity: string;
 }
 
-const STATUS_COLOR: Record<RoleStatus, string> = {
-  idle:    "#4a4a6a",
-  active:  "#2ecc71",
-  blocked: "#e74c3c",
+const stateColor = (state: string, health?: string | null) => {
+  if (health === "UNHEALTHY" || health === "LOST" || state === "BLOCKED") return "var(--error)";
+  if (state === "ACTIVE" || health === "HEALTHY") return "var(--success)";
+  if (state === "WAITING" || health === "DEGRADED") return "var(--warning)";
+  return "var(--muted)";
 };
 
 export function RoleNode({ data, selected }: NodeProps) {
-  const roleData = data as RoleNodeData;
-  const haloColor = STATUS_COLOR[roleData.status];
-
+  const role = data as RoleNodeData;
+  const color = stateColor(role.semanticState, role.observedHealth);
   return (
     <>
       <Handle type="target" position={Position.Top} />
-      <div
-        data-fixture-role={roleData.label}
-        style={{
-          padding: "10px 16px",
-          borderRadius: 8,
-          background: "#1e1e3e",
-          color: "#eee",
-          fontSize: 13,
-          fontWeight: 600,
-          border: `2px solid ${haloColor}`,
-          boxShadow: selected ? `0 0 12px ${haloColor}` : `0 0 6px ${haloColor}88`,
-          minWidth: 110,
-          textAlign: "center",
-        }}
-      >
-        <div style={{ color: haloColor, fontSize: 9, marginBottom: 2, textTransform: "uppercase" }}>
-          {roleData.status}
+      <article aria-label={`${role.roleKey ?? role.label} ${role.semanticState}`} style={{
+        minWidth: 150, padding: "10px 12px", borderRadius: 9,
+        border: `1px solid ${color}`, background: "var(--bg2)", color: "var(--text2)",
+        boxShadow: selected ? `0 0 0 2px ${color}` : "0 5px 18px #0004",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          <span aria-hidden style={{ width: 7, height: 7, borderRadius: "50%", background: color }} />
+          <strong style={{ fontSize: 12 }}>{role.label}</strong>
         </div>
-        {roleData.label}
-      </div>
+        {role.roleKey && <div style={{ marginTop: 3, fontSize: 9, color: "var(--muted)" }}>{role.roleKey}</div>}
+        <div style={{ display: "flex", gap: 6, marginTop: 7, fontSize: 9, color: "var(--text3)" }}>
+          <span>{role.stage ?? "ENTITY"}</span><span>·</span><span>{role.semanticState}</span>
+          {role.attention > 0 && <span style={{ color: "var(--warning)", marginLeft: "auto" }}>{role.attention} needs you</span>}
+        </div>
+        <div style={{ marginTop: 3, fontSize: 9, color: "var(--muted)" }}>runtime {role.observedHealth ?? "UNKNOWN"} · capacity {role.capacity}</div>
+      </article>
       <Handle type="source" position={Position.Bottom} />
     </>
   );

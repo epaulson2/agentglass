@@ -10,6 +10,13 @@ import {
 const originalFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = originalFetch; });
 
+const bootstrap = (items: QcrAttention[]) => ({
+  protocol_version: "1.0.0", stream_id: "operating", cursor: 0,
+  projection_generation: "01990000-0000-7000-8000-000000000099",
+  projection_version: "1.0.0", reducer_version: "1.0.0", replacement: true,
+  projections: [{ kind: "attention", key: "current", value: { items, actionable_count: items.length, metadata: { projection_generation: "01990000-0000-7000-8000-000000000099", projection_version: "1.0.0", reducer_version: "1.0.0" } } }],
+});
+
 const NOW = 1_700_000_000_000;
 const input = (over: Partial<AttentionInput> = {}): AttentionInput =>
   ({ gates: [], insights: [], alerts: [], chats: [], agents: [], ...over } as AttentionInput);
@@ -147,7 +154,7 @@ test("a stale QCR response refreshes canonical state and reports the typed confl
       });
     }
     reads += 1;
-    return Response.json({ items: [reads === 1 ? item : refreshed] });
+    return Response.json(bootstrap([reads === 1 ? item : refreshed]));
   }) as typeof fetch;
 
   await refreshQcrAttention();
@@ -180,7 +187,7 @@ test("a non-action response submits the frozen option parameters", async () => {
   let submitted: Record<string, unknown> | undefined;
   globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
     if (init?.method === "POST") submitted = JSON.parse(String(init.body));
-    return Response.json({ items: [] });
+    return Response.json(bootstrap([]));
   }) as typeof fetch;
   await respondToQcrAttention(item, item.legal_responses[0]!);
   expect((submitted?.parameters as { response: unknown }).response).toEqual({
