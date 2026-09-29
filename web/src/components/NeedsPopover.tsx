@@ -24,6 +24,7 @@ import { api } from "../lib/api.ts";
 import type { AgentPane } from "../../../shared/types.ts";
 import { CloseButton } from "./CloseButton.tsx";
 import { paneChoices } from "../lib/panePick.ts";
+import type { QcrAttention, QcrResponseOption } from "../lib/qcrActions.ts";
 
 export type NeedsItem = {
   /** The agent card key this was raised from. Stable enough for a list key. */
@@ -44,6 +45,7 @@ export type NeedsItem = {
   chatId: string | null;
   /** A permission hold the dashboard can approve. */
   gated: boolean;
+  qcr?: { item: QcrAttention; responses: QcrResponseOption[] };
 };
 
 /** `/home/me/code/x` reads as noise; `~/code/x` reads as a place. The browser
@@ -68,7 +70,7 @@ function Action({ children, onClick, primary }: { children: React.ReactNode; onC
   );
 }
 
-function Row({ it, exact, hits, onChat, onApprove, onProject, onPane }: {
+function Row({ it, exact, hits, onChat, onApprove, onProject, onPane, onQcrRespond }: {
   it: NeedsItem;
   /** The pane this very session reported being in, when it did. */
   exact: AgentPane | null;
@@ -79,10 +81,11 @@ function Row({ it, exact, hits, onChat, onApprove, onProject, onPane }: {
   onApprove: () => void;
   onProject: (root: string) => void;
   onPane: (p: AgentPane) => void;
+  onQcrRespond: (item: QcrAttention, option: QcrResponseOption) => void;
 }) {
   const tint = it.level === "error" ? "var(--error)" : "var(--warning)";
   const pane = exact ?? (hits.length === 1 ? hits[0]! : null);
-  const actionable = !!it.chatId || it.gated || !!it.otherProject || !!pane || hits.length > 0;
+  const actionable = !!it.chatId || it.gated || !!it.otherProject || !!pane || hits.length > 0 || !!it.qcr?.responses.length;
   return (
     <div className="agx-note-row">
       <div className="flex items-center gap-2 mb-1">
@@ -109,6 +112,11 @@ function Row({ it, exact, hits, onChat, onApprove, onProject, onPane }: {
       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
         {it.chatId && <Action primary onClick={() => onChat(it.chatId!)}>Open its chat</Action>}
         {it.gated && <Action primary={!it.chatId} onClick={onApprove}>Approve it</Action>}
+        {it.qcr?.responses.map((option) => (
+          <Action key={option.option_id} primary onClick={() => onQcrRespond(it.qcr!.item, option)}>
+            {option.label}
+          </Action>
+        ))}
         {/* The one that answers the original complaint: the agent is in a tmux
             pane, and now the app knows which. It moves tmux to it and shows the
             terminal, so you land on the prompt that is waiting rather than on a
@@ -156,7 +164,7 @@ function Row({ it, exact, hits, onChat, onApprove, onProject, onPane }: {
  * clips its own overflow — it has to, or a long project name pushes the clock
  * off the end — and a panel drawn inside it would be sliced off at 30px.
  */
-export function NeedsPopover({ anchorRef, open, items, onClose, onChat, onApprove, onProject, onTerminal }: {
+export function NeedsPopover({ anchorRef, open, items, onClose, onChat, onApprove, onProject, onTerminal, onQcrRespond }: {
   anchorRef: React.RefObject<HTMLElement | null>;
   open: boolean;
   items: NeedsItem[];
@@ -166,6 +174,7 @@ export function NeedsPopover({ anchorRef, open, items, onClose, onChat, onApprov
   onProject: (root: string) => void;
   /** Show the terminal, once tmux has been moved to the pane. */
   onTerminal: () => void;
+  onQcrRespond: (item: QcrAttention, option: QcrResponseOption) => void;
 }) {
   const [at, setAt] = useState<{ top: number; left: number } | null>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -248,7 +257,7 @@ export function NeedsPopover({ anchorRef, open, items, onClose, onChat, onApprov
             const { exact, hits } = paneChoices(panes, it);
             return (
               <Row key={it.key} it={it} exact={exact} hits={hits}
-                onChat={onChat} onApprove={onApprove} onProject={onProject} onPane={goPane} />
+                onChat={onChat} onApprove={onApprove} onProject={onProject} onPane={goPane} onQcrRespond={onQcrRespond} />
             );
           })}
         </div>

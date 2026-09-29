@@ -18,7 +18,7 @@
 // opened does not exist yet. On a fresh window that is one view rather than
 // eight, and the dashboard — fourteen panels and a poll every four seconds — is
 // not among them until you ask for it.
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ViewRail, type RailPip } from "./ViewRail.tsx";
 import { pushScope } from "../../lib/findScope.ts";
 import { VIEWS, saveLastView, type ViewId } from "./views.ts";
@@ -34,6 +34,8 @@ import { TermView, subscribeSessions, liveSessionCount } from "../TerminalPanel.
 import { ChatView } from "../ChatPanel.tsx";
 import { BrowserView } from "../BrowserPanel.tsx";
 import { requestTermReview } from "../../lib/termReview.ts";
+
+const AuroraTopologyView = lazy(() => import("../../views/aurora/AuroraTopologyView.tsx").then((module) => ({ default: module.AuroraTopologyView })));
 
 /**
  * Views that keep running with the door shut.
@@ -235,6 +237,7 @@ function Body({ id, active, openChat, openChatWith, reviewInTerminal, chatFocusI
     case "term": return <TermView active={active} />;
     case "chat": return <ChatView active={active} focusId={chatFocusId} />;
     case "browser": return <BrowserView active={active} />;
+    case "aurora": return <Suspense fallback={<div className="p-6 t-dim2">Loading Aurora…</div>}><AuroraTopologyView /></Suspense>;
     default: return null;
   }
 }

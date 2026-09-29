@@ -10,7 +10,7 @@ import type { ControlCmd, ViewId } from "../../shared/types.ts";
 // earns its place for a further reason: an agent driving the built-in browser
 // (browserdrive.ts) needs that view mounted before anything can answer it, and
 // the alternative was telling the agent to ask a human to click a tab.
-const VIEW_IDS: readonly ViewId[] = ["dash", "git", "diff", "pr", "tasks", "docker", "term", "chat", "browser", "files"];
+const VIEW_IDS: readonly ViewId[] = ["dash", "git", "diff", "pr", "tasks", "docker", "term", "chat", "browser", "files", "aurora"];
 type OpenWhat = Extract<ControlCmd, { cmd: "open" }>["what"];
 const OPEN_WHAT: readonly OpenWhat[] = ["stats", "skills", "search", "help", "palette"];
 type ChatDo = Extract<ControlCmd, { cmd: "chat" }>["do"];

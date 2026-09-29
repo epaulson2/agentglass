@@ -13,6 +13,7 @@
 import type { PendingGate, Insight } from "../../../shared/types.ts";
 import type { Alert, AgentCard } from "./derive.ts";
 import type { Chat } from "./chatStore.ts";
+import type { QcrAttention, QcrResponseOption } from "./qcrActions.ts";
 
 /** Ordered by how much it wants you, not by what produced it. */
 export type AttentionLevel = "blocking" | "error" | "warn";
@@ -21,12 +22,13 @@ export interface AttentionItem {
   id: string;
   level: AttentionLevel;
   /** Which mechanism raised it — for the icon and for grouping in the panel. */
-  source: "gate" | "chat" | "agent" | "insight" | "reminder";
+  source: "gate" | "chat" | "agent" | "insight" | "reminder" | "qcr";
   text: string;
   ts: number;
   /** The session or chat this is about, when there is one, so the UI can offer
    *  to open it rather than just describe it. */
   target?: { kind: "session" | "chat"; id: string; app?: string };
+  qcr?: { item: QcrAttention; responses: QcrResponseOption[] };
 }
 
 const LEVEL_RANK: Record<AttentionLevel, number> = { blocking: 0, error: 1, warn: 2 };
@@ -41,6 +43,7 @@ export interface AttentionInput {
   alerts: Alert[];
   chats: Chat[];
   agents: AgentCard[];
+  qcr?: QcrAttention[];
 }
 
 /**
@@ -50,7 +53,7 @@ export interface AttentionInput {
  * alone, which lets a stale error from an hour ago outrank an agent that just
  * stopped to ask you something — the exact inversion this ordering fixes.
  */
-export function collectAttention({ gates, insights, alerts, chats, agents, reminders }: AttentionInput): AttentionItem[] {
+export function collectAttention({ gates, insights, alerts, chats, agents, reminders, qcr }: AttentionInput): AttentionItem[] {
   const out: AttentionItem[] = [];
 
   // A reminder that has fired is something you asked to be told, and has not
@@ -58,6 +61,18 @@ export function collectAttention({ gates, insights, alerts, chats, agents, remin
   for (const r of reminders ?? []) {
     if (!r.firedAt) continue;
     out.push({ id: "reminder:" + r.id, level: "warn", source: "reminder", text: r.title, ts: r.firedAt });
+  }
+
+  for (const item of qcr ?? []) {
+    if (!item.actionable) continue;
+    out.push({
+      id: `qcr:${item.attention_id}`,
+      level: item.blocking ? "blocking" : item.priority === "CRITICAL" ? "error" : "warn",
+      source: "qcr",
+      text: item.summary,
+      ts: Date.parse(item.created_at),
+      qcr: { item, responses: item.legal_responses },
+    });
   }
 
   // A held tool call is the only thing here where something is *actively*

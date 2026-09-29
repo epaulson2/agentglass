@@ -30,6 +30,7 @@ import { IS_MAC_DESKTOP, WINDOW_CONTROLS } from "../lib/desktop.ts";
 import { Logo } from "./Logo.tsx";
 import { useAmbientNotes, NoteToast, NotifyBell } from "./TopBarNotes.tsx";
 import { NeedsPopover, type NeedsItem } from "./NeedsPopover.tsx";
+import type { QcrAttention, QcrResponseOption } from "../lib/qcrActions.ts";
 import { ICON } from "../lib/iconSize.ts";
 import { appChordFor, chordLabel } from "../lib/keybindings.ts";
 
@@ -231,7 +232,7 @@ function PlanMeter({ tag, pct, age, dim, hideUnder }: {
 
 export function TopBar({
   workspace, onOpenProject, onOpenPalette, onOpenFiles, quiet, needs,
-  needsList, onNeedChat, onNeedApprove, onNeedProject, onNeedTerminal, onNoteGoto,
+  needsList, onNeedChat, onNeedApprove, onNeedProject, onNeedTerminal, onQcrRespond, onNoteGoto,
   filterProvider = "",
 }: {
   /** `undefined` means "not asked yet" — distinct from null, which is a real
@@ -260,6 +261,7 @@ export function TopBar({
   onNeedApprove: () => void;
   onNeedProject: (root: string) => void;
   onNeedTerminal: () => void;
+  onQcrRespond: (item: QcrAttention, option: QcrResponseOption) => void;
   /** A notification that knows where it belongs. */
   /** Where a notification points — a pull request, or a checkout with work in
    *  it. See SystemNote["goto"]. */
@@ -456,6 +458,7 @@ export function TopBar({
         onApprove={() => { setNeedsOpen(false); onNeedApprove(); }}
         onProject={(root) => { setNeedsOpen(false); onNeedProject(root); }}
         onTerminal={() => { setNeedsOpen(false); onNeedTerminal(); }}
+        onQcrRespond={onQcrRespond}
       />
 
       {/* ── the plan, the clock, the way in ───────────────────────── */}
