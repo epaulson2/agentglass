@@ -5,6 +5,7 @@ import type { QcrAttentionProjection, QcrInitiative, QcrPortfolio, QcrTopology, 
 import { getQcrProjection, getQcrState, refreshQcrState, subscribeQcrState } from "../../lib/qcr/store.ts";
 import { AgentConversation } from "./AgentConversation.tsx";
 import { RoleNode, type RoleNodeData } from "./RoleNode.tsx";
+import { SdlcRunsView } from "./SdlcRunsView.tsx";
 
 const nodeTypes: NodeTypes = { role: RoleNode };
 const button = { border: "1px solid var(--border)", borderRadius: 5, background: "var(--bg3)", color: "var(--text2)", padding: "5px 8px", fontSize: 11, cursor: "pointer" } as const;
@@ -57,7 +58,7 @@ export function AuroraTopologyView() {
   const state = useSyncExternalStore(subscribeQcrState, getQcrState, getQcrState);
   const portfolio = getQcrProjection<QcrPortfolio>("portfolio", "current");
   const attention = getQcrProjection<QcrAttentionProjection>("attention", "current");
-  const [mode, setMode] = useState<"organization" | "initiative">("organization");
+  const [mode, setMode] = useState<"organization" | "initiative" | "sdlc">("organization");
   const [initiativeId, setInitiativeId] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [conversationOpen, setConversationOpen] = useState(false);
@@ -70,7 +71,7 @@ export function AuroraTopologyView() {
     }
   }, [initiativeId, portfolio]);
 
-  const topology = mode === "organization"
+  const topology = mode === "sdlc" ? null : mode === "organization"
     ? getQcrProjection<QcrTopology>("aurora_organization", "current")
     : initiativeId ? getQcrProjection<QcrTopology>("aurora_initiative", initiativeId) : null;
   useEffect(() => {
@@ -119,6 +120,7 @@ export function AuroraTopologyView() {
         <strong style={{ fontSize: 13 }}>Aurora</strong>
         <button style={modeButton(mode === "organization")} aria-pressed={mode === "organization"} onClick={() => { setMode("organization"); setSelectedId(null); }}>Organization</button>
         <button style={modeButton(mode === "initiative")} aria-pressed={mode === "initiative"} onClick={() => { setMode("initiative"); setSelectedId(null); }}>Initiative</button>
+        <button style={modeButton(mode === "sdlc")} aria-pressed={mode === "sdlc"} onClick={() => { setMode("sdlc"); setSelectedId(null); }}>SDLC Runs</button>
         {mode === "initiative" && <select aria-label="Initiative" value={initiativeId} onChange={(event) => { setInitiativeId(event.target.value); setSelectedId(null); }} style={button}>
           {(portfolio?.initiatives ?? []).map((item) => <option key={item.initiative_id} value={item.initiative_id}>{item.title}</option>)}
         </select>}
@@ -128,7 +130,8 @@ export function AuroraTopologyView() {
         <button style={button} onClick={() => void refreshQcrState("Manual refresh")}>Refresh</button>
       </header>
 
-      {unavailable ? <div role="alert" style={{ padding: 24 }}>Aurora is unavailable. {state.error}</div>
+      {mode === "sdlc" ? <SdlcRunsView />
+        : unavailable ? <div role="alert" style={{ padding: 24 }}>Aurora is unavailable. {state.error}</div>
         : !topology ? <div style={{ padding: 24 }}>{state.connection === "bootstrapping" || state.connection === "idle" ? "Loading canonical topology…" : mode === "initiative" && !initiativeId ? "No Initiatives are available." : "Canonical topology is rebuilding…"}</div>
         : <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: conversationOpen ? "minmax(460px, 1fr) 280px 390px" : "minmax(460px, 1fr) 300px" }}>
           <div style={{ position: "relative", minHeight: 0 }}>

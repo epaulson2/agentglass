@@ -160,3 +160,47 @@ export type QcrInitiative = {
   next_legal_transitions: QcrLegalTransition[];
   metadata: QcrProjectionMetadata;
 };
+
+// SDLC Runs visibility (observed, not canonical)
+export type QcrSdlcStageName = "plan" | "plan-audit" | "fl-plan" | "fl-implement" | "review";
+export type QcrSdlcPhysicalStatus = "MISSING" | "SHELL_IDLE" | "RUNNING" | "UNKNOWN";
+export type QcrSdlcSemanticStatus =
+  | "NOT_REACHED"
+  | "ACTIVE_UNVALIDATED"
+  | "IDLE_UNVALIDATED"
+  | "MISSING_UNVALIDATED"
+  | "VALIDATED"
+  | "TERMINAL"
+  | "UNKNOWN";
+
+export type QcrSdlcStage = {
+  stage: QcrSdlcStageName;
+  physical_status: QcrSdlcPhysicalStatus;
+  semantic_status: QcrSdlcSemanticStatus;
+  receipt_present: boolean | null;
+  tmux_session: string | null;
+  claude_session_id: string | null;
+  jev_shadow: boolean | null;
+};
+
+export type QcrSdlcTask = {
+  task_id: string;
+  task_key: string;
+  branch: string;
+  branch_head: string | null;
+  created_at_utc: string;
+  plan_started: boolean;
+  request_seeded: boolean;
+  overall_status: "RUNNING" | "IDLE_UNVALIDATED" | "COMPLETE" | "DEGRADED";
+  current_stage: QcrSdlcStageName | null;
+  observer_status: "OK" | "DEGRADED";
+  errors: string[];
+  stages: QcrSdlcStage[];
+};
+
+export type QcrSdlcTasksResponse = {
+  schema_version: 1;
+  observed_at_utc: string;
+  tasks: QcrSdlcTask[];
+  errors: Array<{ source: string; code: string }>;
+};
